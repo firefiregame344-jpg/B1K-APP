@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B1K - Login & Signup</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
+        body { background-color: #000; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .container { width: 100%; max-width: 400px; padding: 20px; background: #121212; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .logo { text-align: center; font-size: 32px; font-weight: bold; margin-bottom: 20px; }
+        .logo span.green { color: #00C853; }
+        .logo span.red { color: #D50000; }
+        .form-group { margin-bottom: 15px; position: relative; }
+        label { display: block; margin-bottom: 5px; font-size: 14px; color: #aaa; }
+        input { width: 100%; padding: 12px; background: #1e1e1e; border: 1px solid #333; border-radius: 5px; color: #fff; font-size: 16px; }
+        input:focus { border-color: #00C853; outline: none; }
+        .btn { width: 100%; padding: 12px; background: #00C853; border: none; border-radius: 5px; color: #000; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .btn:hover { background: #00b048; }
+        .switch-text { text-align: center; margin-top: 15px; font-size: 14px; color: #aaa; cursor: pointer; }
+        .switch-text span { color: #00C853; text-decoration: underline; }
+        .status-icon { position: absolute; right: 12px; top: 38px; font-size: 18px; }
+        .error-msg { color: #D50000; font-size: 12px; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="logo">
+            <span class="green">B</span><span class="red">1</span><span class="green">K</span>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <div id="loginSection">
+            <h2>লগইন করুন</h2>
+            <div class="form-group" style="margin-top: 15px;">
+                <label>ইমেইল বা ইউজারনেম</label>
+                <input type="text" id="loginEmail" placeholder="আপনার ইমেইল দিন">
+            </div>
+            <div class="form-group">
+                <label>পাসওয়ার্ড</label>
+                <input type="password" id="loginPassword" placeholder="পাসওয়ার্ড দিন">
+            </div>
+            <button class="btn" onclick="handleLogin()">লগইন</button>
+            <div class="switch-text" onclick="toggleForm('signup')">একাউন্ট নেই? <span>সাইন আপ করুন</span></div>
+        </div>
+
+        <!-- SIGNUP FORM -->
+        <div id="signupSection" style="display: none;">
+            <h2>নতুন একাউন্ট তৈরি করুন</h2>
+            <div class="form-group" style="margin-top: 15px;">
+                <label>ইমেইল</label>
+                <input type="email" id="signupEmail" placeholder="আপনার ইমেইল দিন">
+            </div>
+            <div class="form-group">
+                <label>ইউজারনেম (সর্বোচ্চ ১২ অক্ষর)</label>
+                <input type="text" id="signupUsername" maxlength="12" placeholder="ইউজারনেম লিখুন" oninput="checkUsername()">
+                <span id="usernameStatus" class="status-icon"></span>
+                <div id="usernameError" class="error-msg"></div>
+            </div>
+            <div class="form-group">
+                <label>পাসওয়ার্ড</label>
+                <input type="password" id="signupPassword" placeholder="পাসওয়ার্ড দিন">
+            </div>
+            <button class="btn" onclick="handleSignup()">সাইন আপ</button>
+            <div class="switch-text" onclick="toggleForm('login')">ইতিমধ্যে একাউন্ট আছে? <span>লগইন করুন</span></div>
+        </div>
+
+        <div id="appHome" style="display: none; text-align: center;">
+            <h2>স্বাগতম B1K-এ! 🔥</h2>
+            <p style="margin: 20px 0; color: #aaa;">লগইন সফল হয়েছে। হোম পেজ ও রিলস ফিড আসছে...</p>
+            <button class="btn" style="background: #D50000; color: #fff;" onclick="handleLogout()">লগআউট</button>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBVVaFH3AYyxbTjT6vHrg2eV5iJ3JaNDWE",
+            authDomain: "b1k-app.firebaseapp.com",
+            projectId: "b1k-app",
+            storageBucket: "b1k-app.firebasestorage.app",
+            messagingSenderId: "789183981951",
+            appId: "1:789183981951:web:9832d9dc076301786ed24a",
+            measurementId: "G-H9889Q1GXD"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        window.toggleForm = function(formType) {
+            if(formType === 'signup') {
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('signupSection').style.display = 'block';
+            } else {
+                document.getElementById('signupSection').style.display = 'none';
+                document.getElementById('loginSection').style.display = 'block';
+            }
+        }
+
+        // Real-time Username Check
+        window.checkUsername = async function() {
+            let uname = document.getElementById('signupUsername').value.trim();
+            let statusIcon = document.getElementById('usernameStatus');
+            let errorMsg = document.getElementById('usernameError');
+
+            if(uname.length === 0) {
+                statusIcon.innerHTML = '';
+                errorMsg.innerHTML = '';
+                return;
+            }
+
+            if(uname.length > 12) {
+                statusIcon.innerHTML = '❌';
+                errorMsg.innerHTML = '১২ অক্ষরের বেশি দেওয়া যাবে না!';
+                return;
+            }
+
+            // Check in Database if username exists
+            const unameRef = ref(db, 'usernames/' + uname.toLowerCase());
+            const snapshot = await get(unameRef);
+
+            if(snapshot.exists()) {
+                statusIcon.innerHTML = '❌';
+                errorMsg.innerHTML = 'এই ইউজারনেমটি ইতিমধ্যে নেওয়া হয়েছে!';
+            } else {
+                statusIcon.innerHTML = '✔️';
+                errorMsg.innerHTML = '';
+            }
+        }
+
+        window.handleSignup = async function() {
+            let email = document.getElementById('signupEmail').value;
+            let uname = document.getElementById('signupUsername').value.trim();
+            let password = document.getElementById('signupPassword').value;
+
+            if(!email || !uname || !password) {
+                alert('সবগুলো ঘর পূরণ করুন!');
+                return;
+            }
+
+            try {
+                // Check uniqueness again before creating
+                const unameRef = ref(db, 'usernames/' + uname.toLowerCase());
+                const snapshot = await get(unameRef);
+                if(snapshot.exists()) {
+                    alert('এই ইউজারনেমটি অন্য কেউ ব্যবহার করছে!');
+                    return;
+                }
+
+                let userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                let uid = userCredential.user.uid;
+
+                // Save username mapping
+                await set(ref(db, 'usernames/' + uname.toLowerCase()), uid);
+                // Save user profile data
+                await set(ref(db, 'users/' + uid), {
+                    username: uname,
+                    email: email,
+                    profileLikes: 0
+                });
+
+                alert('সাইন আপ সফল হয়েছে! 🎉');
+            } catch(error) {
+                alert('ত্রুটি: ' + error.message);
+            }
+        }
+
+        window.handleLogin = async function() {
+            let email = document.getElementById('loginEmail').value;
+            let password = document.getElementById('loginPassword').value;
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                alert('লগইন সফল হয়েছে!');
+            } catch(error) {
+                alert('লগইন ব্যর্থ হয়েছে: ' + error.message);
+            }
+        }
+
+        window.handleLogout = async function() {
+            await signOut(auth);
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('signupSection').style.display = 'none';
+                document.getElementById('appHome').style.display = 'block';
+            } else {
+                document.getElementById('loginSection').style.display = 'block';
+                document.getElementById('signupSection').style.display = 'none';
+                document.getElementById('appHome').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B1K - Gaming Reels</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
+        body { background-color: #000; color: #fff; height: 100vh; overflow: hidden; }
+        
+        /* Containers */
+        .page { display: none; width: 100%; height: 100vh; position: absolute; top: 0; left: 0; background: #000; }
+        .page.active { display: flex; flex-direction: column; }
+
+        /* Auth Container */
+        #authPage { justify-content: center; align-items: center; }
+        .auth-box { width: 100%; max-width: 400px; padding: 20px; background: #121212; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .logo { text-align: center; font-size: 32px; font-weight: bold; margin-bottom: 20px; }
+        .logo span.green { color: #00C853; }
+        .logo span.red { color: #D50000; }
+        .form-group { margin-bottom: 15px; position: relative; }
+        label { display: block; margin-bottom: 5px; font-size: 14px; color: #aaa; }
+        input { width: 100%; padding: 12px; background: #1e1e1e; border: 1px solid #333; border-radius: 5px; color: #fff; font-size: 16px; }
+        input:focus { border-color: #00C853; outline: none; }
+        .btn { width: 100%; padding: 12px; background: #00C853; border: none; border-radius: 5px; color: #000; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .switch-text { text-align: center; margin-top: 15px; font-size: 14px; color: #aaa; cursor: pointer; }
+        .switch-text span { color: #00C853; text-decoration: underline; }
+        .status-icon { position: absolute; right: 12px; top: 38px; font-size: 18px; }
+        .error-msg { color: #D50000; font-size: 12px; margin-top: 5px; }
+
+        /* Top Bar & Search */
+        .top-bar { position: absolute; top: 0; left: 0; width: 100%; padding: 15px; background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent); z-index: 10; display: flex; justify-content: space-between; align-items: center; }
+        .search-bar { width: 70%; padding: 8px 12px; background: rgba(255,255,255,0.1); border: none; border-radius: 20px; color: #fff; font-size: 14px; }
+
+        /* Bottom Nav */
+        .bottom-nav { position: absolute; bottom: 0; left: 0; width: 100%; height: 60px; background: #111; display: flex; justify-content: space-around; align-items: center; border-top: 1px solid #222; z-index: 10; }
+        .nav-item { color: #777; font-size: 14px; cursor: pointer; text-align: center; }
+        .nav-item.active { color: #00C853; font-weight: bold; }
+
+        /* Reels Feed */
+        .reels-container { flex: 1; overflow-y: scroll; scroll-snap-type: y mandatory; height: 100vh; }
+        .reel-card { width: 100%; height: 100vh; scroll-snap-align: start; position: relative; display: flex; justify-content: center; align-items: center; background: #111; }
+        .reel-card video { width: 100%; height: 100%; object-fit: cover; }
+        .reel-info { position: absolute; bottom: 70px; left: 15px; z-index: 5; }
+        .creator-info { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; cursor: pointer; }
+        .creator-avatar { width: 40px; height: 40px; border-radius: 50%; background: #333; overflow: hidden; border: 1px solid #00C853; }
+        .creator-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* Action Buttons (Right Side) */
+        .action-buttons { position: absolute; bottom: 80px; right: 15px; display: flex; flex-direction: column; align-items: center; gap: 15px; z-index: 5; }
+        .action-btn { background: rgba(0,0,0,0.5); border: none; color: #fff; width: 45px; height: 45px; border-radius: 50%; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; font-size: 18px; }
+        .action-btn span { font-size: 11px; margin-top: 2px; }
+        .buy-now-btn { background: #00C853; color: #000; font-weight: bold; font-size: 12px; width: 65px; height: 30px; border-radius: 5px; border: none; cursor: pointer; margin-top: 5px; }
+
+        /* Upload Page */
+        #uploadPage { padding: 20px; justify-content: center; align-items: center; }
+        .upload-box { width: 100%; max-width: 400px; background: #121212; padding: 20px; border-radius: 10px; }
+
+        /* Profile Page */
+        #profilePage { padding: 20px; overflow-y: auto; }
+        .profile-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .profile-info-area { display: flex; align-items: center; gap: 15px; }
+        .profile-avatar { width: 70px; height: 70px; border-radius: 50%; background: #333; overflow: hidden; border: 2px solid #00C853; }
+        .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .profile-stats { display: flex; gap: 15px; margin: 15px 0; font-size: 14px; color: #aaa; }
+        .grid-videos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding-bottom: 70px; }
+        .grid-video-card { background: #1a1a1a; border-radius: 5px; overflow: hidden; position: relative; height: 200px; }
+        .grid-video-card video { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* Settings Modal / Menu */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; justify-content: center; align-items: center; }
+        .modal-content { background: #1a1a1a; padding: 20px; width: 90%; max-width: 350px; border-radius: 10px; position: relative; }
+    </style>
+</head>
+<body>
+
+    <!-- 1. AUTH PAGE -->
+    <div id="authPage" class="page active">
+        <div class="auth-box">
+            <div class="logo"><span class="green">B</span><span class="red">1</span><span class="green">K</span></div>
+            
+            <div id="loginForm">
+                <h2>লগইন করুন</h2>
+                <div class="form-group" style="margin-top: 15px;"><label>ইমেইল</label><input type="email" id="loginEmail" placeholder="ইমেইল দিন"></div>
+                <div class="form-group"><label>পাসওয়ার্ড</label><input type="password" id="loginPassword" placeholder="পাসওয়ার্ড দিন"></div>
+                <button class="btn" onclick="loginUser()">লগইন</button>
+                <div class="switch-text" onclick="switchAuth('signup')">একাউন্ট নেই? <span>সাইন আপ করুন</span></div>
+            </div>
+
+            <div id="signupForm" style="display: none;">
+                <h2>সাইন আপ</h2>
+                <div class="form-group" style="margin-top: 15px;"><label>ইমেইল</label><input type="email" id="signupEmail" placeholder="ইমেইল দিন"></div>
+                <div class="form-group">
+                    <label>ইউজারনেম (সর্বোচ্চ ১২ অক্ষর)</label>
+                    <input type="text" id="signupUsername" maxlength="12" placeholder="ইউজারনেম দিন" oninput="checkUname()">
+                    <span id="unameStatus" class="status-icon"></span>
+                    <div id="unameError" class="error-msg"></div>
+                </div>
+                <div class="form-group"><label>পাসওয়ার্ড</label><input type="password" id="signupPassword" placeholder="পাসওয়ার্ড দিন"></div>
+                <button class="btn" onclick="signupUser()">রেজিস্ট্রেশন</button>
+                <div class="switch-text" onclick="switchAuth('login')">ইতিমধ্যে একাউন্ট আছে? <span>লগইন করুন</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. HOME PAGE (REELS FEED) -->
+    <div id="homePage" class="page">
+        <div class="top-bar">
+            <input type="text" class="search-bar" id="searchInput" placeholder="রিলস টাইটেল সার্চ করুন..." oninput="filterReels()">
+            <span style="font-weight: bold; color: #00C853;">B1K</span>
+        </div>
+        <div class="reels-container" id="reelsFeed">
+            <!-- Dynamic Reels Feed -->
+        </div>
+    </div>
+
+    <!-- 3. UPLOAD PAGE -->
+    <div id="uploadPage" class="page">
+        <div class="upload-box">
+            <h2>নতুন রিলস আপলোড</h2>
+            <div class="form-group" style="margin-top: 15px;"><label>ভিডিও লিংক (MP4 Link)</label><input type="text" id="videoUrl" placeholder="ভিডিওর ডাইরেক্ট লিংক দিন"></div>
+            <div class="form-group"><label>টাইটেল</label><input type="text" id="videoTitle" placeholder="ভিডিওর শিরোনাম দিন"></div>
+            <div class="form-group"><label>বাই নাও লিংক (Buy Now URL)</label><input type="text" id="buyNowUrl" placeholder="WhatsApp বা প্রডাক্ট লিংক দিন"></div>
+            <button class="btn" onclick="uploadReel()">পোস্ট করুন</button>
+        </div>
+    </div>
+
+    <!-- 4. PROFILE PAGE -->
+    <div id="profilePage" class="page">
+        <div class="profile-header">
+            <div class="profile-info-area">
+                <div class="profile-avatar"><img id="profileImg" src="https://via.placeholder.com/70" alt=""></div>
+                <div>
+                    <h3 id="profileUsernameDisplay">Username</h3>
+                    <p style="font-size: 12px; color: #777;" id="profileEmailDisplay">email@domain.com</p>
+                </div>
+            </div>
+            <button onclick="openSettingsModal()" style="background: none; border: none; color: #fff; font-size: 22px; cursor: pointer;">⚙️</button>
+        </div>
+        <div class="profile-stats">
+            <div>❤️ প্রোফাইল লাইক: <span id="profileLikeCount">0</span></div>
+            <div>🔥 মোট ভিডিও: <span id="totalVideosCount">0</span></div>
+        </div>
+        <hr style="border-color: #222; margin-bottom: 15px;">
+        <div class="grid-videos" id="userGridVideos">
+            <!-- User Uploaded Videos Grid -->
+        </div>
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <h3>প্রোফাইল সেটিংস</h3>
+            <div class="form-group" style="margin-top: 15px;"><label>প্রোফাইল ছবি লিংক</label><input type="text" id="editAvatarUrl" placeholder="ছবির লিংক দিন"></div>
+            <div class="form-group">
+                <label>নতুন ইউজারনেম</label>
+                <input type="text" id="editUsername" maxlength="12" placeholder="নতুন ইউজারনেম" oninput="checkEditUname()">
+                <span id="editUnameStatus" class="status-icon"></span>
+            </div>
+            <div class="form-group"><label>পুরাতন পাসওয়ার্ড</label><input type="password" id="oldPassword" placeholder="পুরাতন পাসওয়ার্ড দিন"></div>
+            <div class="form-group"><label>নতুন পাসওয়ার্ড</label><input type="password" id="newPassword" placeholder="নতুন পাসওয়ার্ড দিন"></div>
+            <button class="btn" onclick="saveSettings()">পরিবর্তন সেভ করুন</button>
+            <button class="btn" style="background: #D50000; color: #fff; margin-top: 10px;" onclick="logoutUser()">লগ আউট</button>
+            <button class="btn" style="background: #333; color: #fff; margin-top: 5px;" onclick="closeSettingsModal()">বন্ধ করুন</button>
+        </div>
+    </div>
+
+    <!-- COMMON BOTTOM NAV -->
+    <div class="bottom-nav" id="bottomNav" style="display: none;">
+        <div class="nav-item active" onclick="switchPage('homePage')">🏠<br>হোম</div>
+        <div class="nav-item" onclick="switchPage('uploadPage')">➕<br>আপলোড</div>
+        <div class="nav-item" onclick="switchPage('profilePage')">👤<br>প্রোফাইল</div>
+    </div>
+
+    <!-- FIREBASE APP LOGIC -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getDatabase, ref, get, set, push, remove, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBVVaFH3AYyxbTjT6vHrg2eV5iJ3JaNDWE",
+            authDomain: "b1k-app.firebaseapp.com",
+            projectId: "b1k-app",
+            storageBucket: "b1k-app.firebasestorage.app",
+            messagingSenderId: "789183981951",
+            appId: "1:789183981951:web:9832d9dc076301786ed24a",
+            measurementId: "G-H9889Q1GXD"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        let currentUser = null;
+
+        window.switchAuth = function(type) {
+            if(type === 'signup') {
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('signupForm').style.display = 'block';
+            } else {
+                document.getElementById('signupForm').style.display = 'none';
+                document.getElementById('loginForm').style.display = 'block';
+            }
+        }
+
+        window.switchPage = function(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            if(pageId === 'homePage') document.querySelectorAll('.nav-item')[0].classList.add('active');
+            if(pageId === 'uploadPage') document.querySelectorAll('.nav-item')[1].classList.add('active');
+            if(pageId === 'profilePage') {
+                document.querySelectorAll('.nav-item')[2].classList.add('active');
+                loadUserProfile(currentUser.uid);
+            }
+        }
+
+        // Live Username Verification
+        window.checkUname = async function() {
+            let uname = document.getElementById('signupUsername').value.trim().toLowerCase();
+            let status = document.getElementById('unameStatus');
+            let err = document.getElementById('unameError');
+            if(!uname) { status.innerHTML=''; err.innerHTML=''; return; }
+            if(uname.length > 12) { status.innerHTML='❌'; err.innerHTML='১২ অক্ষরের বেশি হবে না!'; return; }
+            const snap = await get(ref(db, 'usernames/' + uname));
+            if(snap.exists()) { status.innerHTML='❌'; err.innerHTML='ইতিমধ্যে নেওয়া হয়েছে!'; }
+            else { status.innerHTML='✔️'; err.innerHTML=''; }
+        }
+
+        window.signupUser = async function() {
+            let email = document.getElementById('signupEmail').value;
+            let uname = document.getElementById('signupUsername').value.trim();
+            let pass = document.getElementById('signupPassword').value;
+            if(!email || !uname || !pass) { alert('সব ঘর পূরণ করুন!'); return; }
+            
+            const snap = await get(ref(db, 'usernames/' + uname.toLowerCase()));
+            if(snap.exists()) { alert('ইউজারনেমটি অন্য কেউ নিয়ে নিয়েছে!'); return; }
+
+            try {
+                let cred = await createUserWithEmailAndPassword(auth, email, pass);
+                let uid = cred.user.uid;
+                await set(ref(db, 'usernames/' + uname.toLowerCase()), uid);
+                await set(ref(db, 'users/' + uid), { username: uname, email: email, profileLikes: 0, avatar: 'https://via.placeholder.com/70' });
+                alert('সাইন আপ সফল হয়েছে! 🎉');
+            } catch(e) { alert('ত্রুটি: ' + e.message); }
+        }
+
+        window.loginUser = async function() {
+            let email = document.getElementById('loginEmail').value;
+            let pass = document.getElementById('loginPassword').value;
+            try { await signInWithEmailAndPassword(auth, email, pass); } 
+            catch(e) { alert('লগইন ব্যর্থ: ' + e.message); }
+        }
+
+        window.logoutUser = async function() { await signOut(auth); }
+
+        onAuthStateChanged(auth, (user) => {
+            if(user) {
+                currentUser = user;
+                document.getElementById('authPage').classList.remove('active');
+                document.getElementById('bottomNav').style.display = 'flex';
+                switchPage('homePage');
+                loadReelsFeed();
+            } else {
+                currentUser = null;
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById('authPage').classList.add('active');
+                document.getElementById('bottomNav').style.display = 'none';
+            }
+        });
+
+        // Upload Reel Logic
+        window.uploadReel = async function() {
+            let vUrl = document.getElementById('videoUrl').value;
+            let title = document.getElementById('videoTitle').value;
+            let buyUrl = document.getElementById('buyNowUrl').value;
+            if(!vUrl || !title) { alert('ভিডিও লিংক ও টাইটেল দিন!'); return; }
+
+            let userSnap = await get(ref(db, 'users/' + currentUser.uid));
+            let userData = userSnap.val();
+
+            let newReelRef = push(ref(db, 'reels'));
+            await set(newReelRef, {
+                reelId: newReelRef.key,
+                uid: currentUser.uid,
+                username: userData.username,
+                avatar: userData.avatar || 'https://via.placeholder.com/40',
+                videoUrl: vUrl,
+                title: title,
+                buyNowUrl: buyUrl || '#',
+                likes: 0,
+                dislikes: 0
+            });
+
+            alert('রিলস আপলোড সফল হয়েছে! 🚀');
+            document.getElementById('videoUrl').value = '';
+            document.getElementById('videoTitle').value = '';
+            document.getElementById('buyNowUrl').value = '';
+            switchPage('homePage');
+            loadReelsFeed();
+        }
+
+        // Load Reels Feed
+        window.loadReelsFeed = async function() {
+            let feed = document.getElementById('reelsFeed');
+            feed.innerHTML = '<p style="text-align:center; margin-top:50px;">লোড হচ্ছে...</p>';
+            let snap = await get(ref(db, 'reels'));
+            if(!snap.exists()) { feed.innerHTML = '<p style="text-align:center; margin-top:50px;">কোনো রিলস নেই!</p>'; return; }
+            
+            feed.innerHTML = '';
+            snap.forEach((child) => {
+                let r = child.val();
+                let card = document.createElement('div');
+                card.className = 'reel-card';
+                card.innerHTML = `
+                    <video src="${r.videoUrl}" loop autoplay muted playsinline onclick="this.paused ? this.play() : this.pause()"></video>
+                    <div class="reel-info">
+                        <div class="creator-info" onclick="viewProfile('${r.uid}')">
+                            <div class="creator-avatar"><img src="${r.avatar}" alt=""></div>
+                            <b>@${r.username}</b>
+                        </div>
+                        <p style="font-size: 14px; margin-bottom: 5px;">${r.title}</p>
+                        <button class="buy-now-btn" onclick="window.open('${r.buyNowUrl}', '_blank')">Buy Now</button>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="action-btn" onclick="likeReel('${r.reelId}')">👍<span>${r.likes || 0}</span></button>
+                        <button class="action-btn" onclick="dislikeReel('${r.reelId}')">👎<span>${r.dislikes || 0}</span></button>
+                    </div>
+                `;
+                feed.appendChild(card);
+            });
+        }
+
+        window.likeReel = async function(reelId) {
+            let rRef = ref(db, 'reels/' + reelId);
+            let snap = await get(rRef);
+            if(snap.exists()) {
+                let data = snap.val();
+                let currentLikes = data.likes || 0;
+                await update(rRef, { likes: currentLikes + 1 });
+                loadReelsFeed();
+            }
+        }
+
+        window.dislikeReel = async function(reelId) {
+            let rRef = ref(db, 'reels/' + reelId);
+            let snap = await get(rRef);
+            if(snap.exists()) {
+                let data = snap.val();
+                let currentDislikes = data.dislikes || 0;
+                await update(rRef, { dislikes: currentDislikes + 1 });
+                loadReelsFeed();
+            }
+        }
+
+        // Profile Page Data Load
+        window.loadUserProfile = async function(uid) {
+            let userSnap = await get(ref(db, 'users/' + uid));
+            if(!userSnap.exists()) return;
+            let u = userSnap.val();
+            document.getElementById('profileUsernameDisplay').innerText = '@' + u.username;
+            document.getElementById('profileEmailDisplay').innerText = u.email;
+            document.getElementById('profileLikeCount').innerText = u.profileLikes || 0;
+            document.getElementById('profileImg').src = u.avatar || 'https://via.placeholder.com/70';
+
+            // Load User Reels
+            let grid = document.getElementById('userGridVideos');
+            grid.innerHTML = '';
+            let reelsSnap = await get(ref(db, 'reels'));
+            let count = 0;
+            if(reelsSnap.exists()) {
+                reelsSnap.forEach((child) => {
+                    let r = child.val();
+                    if(r.uid === uid) {
+                        count++;
+                        let item = document.createElement('div');
+                        item.className = 'grid-video-card';
+                        item.innerHTML = `<video src="${r.videoUrl}"></video>
+                        <div style="position:absolute; bottom:5px; left:5px; font-size:11px; background:rgba(0,0,0,0.6); padding:2px 5px; border-radius:3px;">${r.title}</div>`;
+                        // Delete on long press or click for simplicity
+                        item.ondblclick = async () => {
+                            if(confirm('এই ভিডিওটি ডিলিট করতে চান?')) {
+                                await remove(ref(db, 'reels/' + r.reelId));
+                                loadUserProfile(uid);
+                            }
+                        };
+                        grid.appendChild(item);
+                    }
+                });
+            }
+            document.getElementById('totalVideosCount').innerText = count;
+        }
+
+        window.openSettingsModal = function() { document.getElementById('settingsModal').style.display = 'flex'; }
+        window.closeSettingsModal = function() { document.getElementById('settingsModal').style.display = 'none'; }
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B1K - Gaming Reels & Market</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
+        body { background-color: #000; color: #fff; height: 100vh; overflow: hidden; }
+        
+        .page { display: none; width: 100%; height: 100vh; position: absolute; top: 0; left: 0; background: #000; }
+        .page.active { display: flex; flex-direction: column; }
+
+        #authPage { justify-content: center; align-items: center; }
+        .auth-box { width: 100%; max-width: 400px; padding: 20px; background: #121212; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .logo { text-align: center; font-size: 32px; font-weight: bold; margin-bottom: 20px; }
+        .logo span.green { color: #00C853; }
+        .logo span.red { color: #D50000; }
+        .form-group { margin-bottom: 15px; position: relative; }
+        label { display: block; margin-bottom: 5px; font-size: 14px; color: #aaa; }
+        input { width: 100%; padding: 12px; background: #1e1e1e; border: 1px solid #333; border-radius: 5px; color: #fff; font-size: 16px; }
+        input:focus { border-color: #00C853; outline: none; }
+        .btn { width: 100%; padding: 12px; background: #00C853; border: none; border-radius: 5px; color: #000; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .switch-text { text-align: center; margin-top: 15px; font-size: 14px; color: #aaa; cursor: pointer; }
+        .switch-text span { color: #00C853; text-decoration: underline; }
+        .status-icon { position: absolute; right: 12px; top: 38px; font-size: 18px; }
+        .error-msg { color: #D50000; font-size: 12px; margin-top: 5px; }
+
+        .top-bar { position: absolute; top: 0; left: 0; width: 100%; padding: 15px; background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent); z-index: 10; display: flex; justify-content: space-between; align-items: center; }
+        .search-bar { width: 75%; padding: 8px 12px; background: rgba(255,255,255,0.1); border: none; border-radius: 20px; color: #fff; font-size: 14px; }
+
+        .bottom-nav { position: absolute; bottom: 0; left: 0; width: 100%; height: 60px; background: #111; display: flex; justify-content: space-around; align-items: center; border-top: 1px solid #222; z-index: 10; }
+        .nav-item { color: #777; font-size: 14px; cursor: pointer; text-align: center; }
+        .nav-item.active { color: #00C853; font-weight: bold; }
+
+        .reels-container { flex: 1; overflow-y: scroll; scroll-snap-type: y mandatory; height: 100vh; }
+        .reel-card { width: 100%; height: 100vh; scroll-snap-align: start; position: relative; display: flex; justify-content: center; align-items: center; background: #111; }
+        .reel-card video { width: 100%; height: 100%; object-fit: cover; }
+        .reel-info { position: absolute; bottom: 70px; left: 15px; z-index: 5; max-width: 70%; }
+        .creator-info { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; cursor: pointer; }
+        .creator-avatar { width: 40px; height: 40px; border-radius: 50%; background: #333; overflow: hidden; border: 1px solid #00C853; }
+        .creator-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .action-buttons { position: absolute; bottom: 80px; right: 15px; display: flex; flex-direction: column; align-items: center; gap: 15px; z-index: 5; }
+        .action-btn { background: rgba(0,0,0,0.6); border: none; color: #fff; width: 45px; height: 45px; border-radius: 50%; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; font-size: 18px; }
+        .action-btn span { font-size: 11px; margin-top: 2px; }
+        .buy-now-btn { background: #00C853; color: #000; font-weight: bold; font-size: 12px; width: 75px; height: 32px; border-radius: 5px; border: none; cursor: pointer; margin-top: 8px; }
+
+        #uploadPage { padding: 20px; justify-content: center; align-items: center; }
+        .upload-box { width: 100%; max-width: 400px; background: #121212; padding: 20px; border-radius: 10px; }
+
+        #profilePage { padding: 20px; overflow-y: auto; }
+        .profile-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .profile-info-area { display: flex; align-items: center; gap: 15px; }
+        .profile-avatar { width: 70px; height: 70px; border-radius: 50%; background: #333; overflow: hidden; border: 2px solid #00C853; }
+        .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .profile-stats { display: flex; gap: 15px; margin: 15px 0; font-size: 14px; color: #aaa; align-items: center; }
+        .profile-like-btn { background: #D50000; color: #fff; border: none; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 13px; }
+        .grid-videos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding-bottom: 70px; }
+        .grid-video-card { background: #1a1a1a; border-radius: 5px; overflow: hidden; position: relative; height: 200px; }
+        .grid-video-card video { width: 100%; height: 100%; object-fit: cover; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; }
+        .modal-content { background: #1a1a1a; padding: 20px; width: 90%; max-width: 350px; border-radius: 10px; position: relative; }
+    </style>
+</head>
+<body>
+
+    <!-- 1. AUTH PAGE -->
+    <div id="authPage" class="page active">
+        <div class="auth-box">
+            <div class="logo"><span class="green">B</span><span class="red">1</span><span class="green">K</span></div>
+            
+            <div id="loginForm">
+                <h2>লগইন করুন</h2>
+                <div class="form-group" style="margin-top: 15px;"><label>ইমেইল</label><input type="email" id="loginEmail" placeholder="ইমেইল দিন"></div>
+                <div class="form-group"><label>পাসওয়ার্ড</label><input type="password" id="loginPassword" placeholder="পাসওয়ার্ড দিন"></div>
+                <button class="btn" onclick="loginUser()">লগইন</button>
+                <div class="switch-text" onclick="switchAuth('signup')">একাউন্ট নেই? <span>সাইন আপ করুন</span></div>
+            </div>
+
+            <div id="signupForm" style="display: none;">
+                <h2>সাইন আপ</h2>
+                <div class="form-group" style="margin-top: 15px;"><label>ইমেইল</label><input type="email" id="signupEmail" placeholder="ইমেইল দিন"></div>
+                <div class="form-group">
+                    <label>ইউজারনেম (সর্বোচ্চ ১২ অক্ষর)</label>
+                    <input type="text" id="signupUsername" maxlength="12" placeholder="ইউজারনেম দিন" oninput="checkUname()">
+                    <span id="unameStatus" class="status-icon"></span>
+                    <div id="unameError" class="error-msg"></div>
+                </div>
+                <div class="form-group"><label>পাসওয়ার্ড</label><input type="password" id="signupPassword" placeholder="পাসওয়ার্ড দিন"></div>
+                <button class="btn" onclick="signupUser()">রেজিস্ট্রেশন</button>
+                <div class="switch-text" onclick="switchAuth('login')">ইতিমধ্যে একাউন্ট আছে? <span>লগইন করুন</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. HOME PAGE -->
+    <div id="homePage" class="page">
+        <div class="top-bar">
+            <input type="text" class="search-bar" id="searchInput" placeholder="রিলস টাইটেল সার্চ করুন..." oninput="filterReels()">
+            <span style="font-weight: bold; color: #00C853; font-size: 18px;">B1K</span>
+        </div>
+        <div class="reels-container" id="reelsFeed"></div>
+    </div>
+
+    <!-- 3. UPLOAD PAGE -->
+    <div id="uploadPage" class="page">
+        <div class="upload-box">
+            <h2>নতুন রিলস আপলোড</h2>
+            <div class="form-group" style="margin-top: 15px;"><label>ভিডিও লিংক (MP4)</label><input type="text" id="videoUrl" placeholder="ভিডিওর ডাইরেক্ট লিংক দিন"></div>
+            <div class="form-group"><label>টাইটেল</label><input type="text" id="videoTitle" placeholder="ভিডিওর শিরোনাম দিন"></div>
+            <div class="form-group"><label>বাই নাও লিংক (Buy Now)</label><input type="text" id="buyNowUrl" placeholder="WhatsApp বা প্রডাক্ট লিংক"></div>
+            <button class="btn" onclick="uploadReel()">পোস্ট করুন</button>
+        </div>
+    </div>
+
+    <!-- 4. PROFILE PAGE -->
+    <div id="profilePage" class="page">
+        <div class="profile-header">
+            <div class="profile-info-area">
+                <div class="profile-avatar"><img id="profileImg" src="" alt=""></div>
+                <div>
+                    <h3 id="profileUsernameDisplay">Username</h3>
+                    <p style="font-size: 12px; color: #777;" id="profileEmailDisplay">email@domain.com</p>
+                </div>
+            </div>
+            <button onclick="openSettingsModal()" style="background: none; border: none; color: #fff; font-size: 22px; cursor: pointer;">⚙️</button>
+        </div>
+        <div class="profile-stats">
+            <div>❤️ প্রোফাইল লাইক: <span id="profileLikeCount">0</span></div>
+            <div>🔥 ভিডিও: <span id="totalVideosCount">0</span></div>
+            <button class="profile-like-btn" id="profileLikeBtnAction" onclick="toggleProfileLike()">❤️ সাপোর্ট দিন</button>
+        </div>
+        <hr style="border-color: #222; margin-bottom: 15px;">
+        <div class="grid-videos" id="userGridVideos"></div>
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <h3>প্রোফাইল সেটিংস</h3>
+            <div class="form-group" style="margin-top: 15px;"><label>প্রোফাইল ছবি লিংক</label><input type="text" id="editAvatarUrl" placeholder="ছবির লিংক"></div>
+            <div class="form-group">
+                <label>নতুন ইউজারনেম</label>
+                <input type="text" id="editUsername" maxlength="12" placeholder="নতুন ইউজারনেম" oninput="checkEditUname()">
+                <span id="editUnameStatus" class="status-icon"></span>
+            </div>
+            <button class="btn" onclick="saveSettings()">পরিবর্তন সেভ করুন</button>
+            <button class="btn" style="background: #D50000; color: #fff; margin-top: 10px;" onclick="logoutUser()">লগ আউট</button>
+            <button class="btn" style="background: #333; color: #fff; margin-top: 5px;" onclick="closeSettingsModal()">বন্ধ করুন</button>
+        </div>
+    </div>
+
+    <!-- BOTTOM NAV -->
+    <div class="bottom-nav" id="bottomNav" style="display: none;">
+        <div class="nav-item active" onclick="switchPage('homePage')">🏠<br>হোম</div>
+        <div class="nav-item" onclick="switchPage('uploadPage')">➕<br>আপলোড</div>
+        <div class="nav-item" onclick="toMyProfile()">👤<br>প্রোফাইল</div>
+    </div>
+
+    <!-- FIREBASE SCRIPT -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getDatabase, ref, get, set, push, remove, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBVVaFH3AYyxbTjT6vHrg2eV5iJ3JaNDWE",
+            authDomain: "b1k-app.firebaseapp.com",
+            projectId: "b1k-app",
+            storageBucket: "b1k-app.firebasestorage.app",
+            messagingSenderId: "789183981951",
+            appId: "1:789183981951:web:9832d9dc076301786ed24a",
+            measurementId: "G-H9889Q1GXD"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        let currentUser = null;
+        let viewingProfileUid = null;
+
+        window.switchAuth = (type) => {
+            document.getElementById('loginForm').style.display = type === 'signup' ? 'none' : 'block';
+            document.getElementById('signupForm').style.display = type === 'signup' ? 'block' : 'none';
+        }
+
+        window.switchPage = (pageId) => {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            if(pageId === 'homePage') { document.querySelectorAll('.nav-item')[0].classList.add('active'); loadReelsFeed(); }
+            if(pageId === 'uploadPage') document.querySelectorAll('.nav-item')[1].classList.add('active');
+        }
+
+        window.toMyProfile = () => {
+            if(currentUser) viewProfile(currentUser.uid);
+        }
+
+        window.checkUname = async () => {
+            let uname = document.getElementById('signupUsername').value.trim().toLowerCase();
+            let status = document.getElementById('unameStatus'), err = document.getElementById('unameError');
+            if(!uname) { status.innerHTML=''; err.innerHTML=''; return; }
+            if(uname.length > 12) { status.innerHTML='❌'; err.innerHTML='১২ অক্ষরের বেশি নয়!'; return; }
+            const snap = await get(ref(db, 'usernames/' + uname));
+            status.innerHTML = snap.exists() ? '❌' : '✔️';
+            err.innerHTML = snap.exists() ? 'ইতিমধ্যে নেওয়া হয়েছে!' : '';
+        }
+
+        window.signupUser = async () => {
+            let email = document.getElementById('signupEmail').value;
+            let uname = document.getElementById('signupUsername').value.trim();
+            let pass = document.getElementById('signupPassword').value;
+            if(!email || !uname || !pass) { alert('সব ঘর পূরণ করুন!'); return; }
+            
+            const snap = await get(ref(db, 'usernames/' + uname.toLowerCase()));
+            if(snap.exists()) { alert('ইউজারনেমটি অন্য কেউ নিয়েছে!'); return; }
+
+            try {
+                let cred = await createUserWithEmailAndPassword(auth, email, pass);
+                let uid = cred.user.uid;
+                await set(ref(db, 'usernames/' + uname.toLowerCase()), uid);
+                await set(ref(db, 'users/' + uid), { username: uname, email: email, profileLikes: 0, avatar: 'https://via.placeholder.com/70' });
+                alert('সাইন আপ সফল হয়েছে! 🎉');
+            } catch(e) { alert('ত্রুটি: ' + e.message); }
+        }
+
+        window.loginUser = async () => {
+            try { await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPassword').value); } 
+            catch(e) { alert('লগইন ব্যর্থ: ' + e.message); }
+        }
+
+        window.logoutUser = async () => { await signOut(auth); closeSettingsModal(); }
+
+        onAuthStateChanged(auth, (user) => {
+            if(user) {
+                currentUser = user;
+                document.getElementById('authPage').classList.remove('active');
+                document.getElementById('bottomNav').style.display = 'flex';
+                switchPage('homePage');
+            } else {
+                currentUser = null;
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById('authPage').classList.add('active');
+                document.getElementById('bottomNav').style.display = 'none';
+            }
+        });
+
+        window.uploadReel = async () => {
+            let vUrl = document.getElementById('videoUrl').value, title = document.getElementById('videoTitle').value, buyUrl = document.getElementById('buyNowUrl').value;
+            if(!vUrl || !title) { alert('ভিডিও লিংক ও টাইটেল দিন!'); return; }
+            let userSnap = await get(ref(db, 'users/' + currentUser.uid));
+            let uData = userSnap.val();
+            let newRef = push(ref(db, 'reels'));
+            await set(newRef, { reelId: newRef.key, uid: currentUser.uid, username: uData.username, avatar: uData.avatar || 'https://via.placeholder.com/40', videoUrl: vUrl, title: title, buyNowUrl: buyUrl || '#', likes: 0, dislikes: 0 });
+            alert('রিলস আপলোড সফল! 🚀');
+            document.getElementById('videoUrl').value = ''; document.getElementById('videoTitle').value = ''; document.getElementById('buyNowUrl').value = '';
+            switchPage('homePage');
+        }
+
+        window.loadReelsFeed = async () => {
+            let feed = document.getElementById('reelsFeed');
+            feed.innerHTML = '<p style="text-align:center; margin-top:50px;">লোড হচ্ছে...</p>';
+            let snap = await get(ref(db, 'reels'));
+            if(!snap.exists()) { feed.innerHTML = '<p style="text-align:center; margin-top:50px;">কোনো রিলস নেই!</p>'; return; }
+            
+            feed.innerHTML = '';
+            snap.forEach((child) => {
+                let r = child.val();
+                let card = document.createElement('div');
+                card.className = 'reel-card';
+                card.innerHTML = `
+                    <video src="${r.videoUrl}" loop autoplay muted playsinline onclick="this.paused ? this.play() : this.pause()"></video>
+                    <div class="reel-info">
+                        <div class="creator-info" onclick="viewProfile('${r.uid}')">
+                            <div class="creator-avatar"><img src="${r.avatar}" alt=""></div>
+                            <b>@${r.username}</b>
+                        </div>
+                        <p style="font-size: 14px; margin-bottom: 5px;">${r.title}</p>
+                        <button class="buy-now-btn" onclick="window.open('${r.buyNowUrl}', '_blank')">Buy Now</button>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="action-btn" onclick="reactReel('${r.reelId}', 'like')">👍<span>${r.likes || 0}</span></button>
+                        <button class="action-btn" onclick="reactReel('${r.reelId}', 'dislike')">👎<span>${r.dislikes || 0}</span></button>
+                    </div>
+                `;
+                feed.appendChild(card);
+            });
+        }
+
+        window.reactReel = async (reelId, type) => {
+            let rRef = ref(db, 'reels/' + reelId);
+            let snap = await get(rRef);
+            if(snap.exists()) {
+                let d = snap.val();
+                let likes = d.likes || 0, dislikes = d.dislikes || 0;
+                if(type === 'like') likes++; else dislikes++;
+                await update(rRef, { likes, dislikes });
+                loadReelsFeed();
+            }
+        }
+
+        window.viewProfile = async (uid) => {
+            viewingProfileUid = uid;
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('profilePage').classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelectorAll('.nav-item')[2].classList.add('active');
+
+            let userSnap = await get(ref(db, 'users/' + uid));
+            if(!userSnap.exists()) return;
+            let u = userSnap.val();
+            document.getElementById('profileUsernameDisplay').innerText = '@' + u.username;
+            document.getElementById('profileEmailDisplay').innerText = u.email;
+            document.getElementById('profileLikeCount').innerText = u.profileLikes || 0;
+            document.getElementById('profileImg').src = u.avatar || 'https://via.placeholder.com/70';
+
+            let likeBtn = document.getElementById('profileLikeBtnAction');
+            likeBtn.style.display = (uid === currentUser.uid) ? 'none' : 'block';
+
+            let grid = document.getElementById('userGridVideos');
+            grid.innerHTML = '';
+            let reelsSnap = await get(ref(db, 'reels'));
+            let count = 0;
+            if(reelsSnap.exists()) {
+                reelsSnap.forEach((child) => {
+                    let r = child.val();
+                    if(r.uid === uid) {
+                        count++;
+                        let item = document.createElement('div');
+                        item.className = 'grid-video-card';
+                        item.innerHTML = `<video src="${r.videoUrl}"></video>
+                        <div style="position:absolute; bottom:5px; left:5px; font-size:11px; background:rgba(0,0,0,0.6); padding:2px 5px; border-radius:3px;">${r.title}</div>`;
+                        if(uid === currentUser.uid) {
+                            item.ondblclick = async () => {
+                                if(confirm('এই ভিডিওটি ডিলিট করতে চান?')) {
+                                    await remove(ref(db, 'reels/' + r.reelId));
+                                    viewProfile(uid);
+                                }
+                            }
+                        }
+                        grid.appendChild(item);
+                    }
+                });
+            }
+            document.getElementById('totalVideosCount').innerText = count;
+        }
+
+        window.toggleProfileLike = async () => {
+            let uRef = ref(db, 'users/' + viewingProfileUid);
+            let snap = await get(uRef);
+            if(snap.exists()) {
+                let currentLikes = snap.val().profileLikes || 0;
+                await update(uRef, { profileLikes: currentLikes + 1 });
+                viewProfile(viewingProfileUid);
+            }
+        }
+
+        window.openSettingsModal = () => { document.getElementById('settingsModal').style.display = 'flex'; }
+        window.closeSettingsModal = () => { document.getElementById('settingsModal').style.display = 'none'; }
+        
+        window.saveSettings = async () => {
+            let newAvatar = document.getElementById('editAvatarUrl').value;
+            let updates = {};
+            if(newAvatar) updates.avatar = newAvatar;
+            if(Object.keys(updates).length > 0) {
+                await update(ref(db, 'users/' + currentUser.uid), updates);
+                alert('প্রোফাইল আপডেট সফল!');
+                closeSettingsModal();
+                viewProfile(currentUser.uid);
+            }
+        }
+    </script>
+</body>
+</html>
